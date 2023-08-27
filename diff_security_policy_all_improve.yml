@@ -1,0 +1,205 @@
+# -*- coding: utf-8 -*-
+# Playbook Name: Set Inventory Groups
+# Description: 分散FW設定比較
+# File Name: diff_security_policy.yml
+#
+# All Rights Reserved. Copyright (C) 2023, JCOM, Ltd.
+#
+# 更新履歴
+# 2023/06/07 新規作成
+#
+---
+# 設定ファイル（接続用情報）読み込み
+- name: include connection define
+  include_vars:
+      file: config/nsxt_config.yml
+
+# 設定ファイル（実行環境）読み込み
+- name: include connection define
+  include_vars:
+      file: config/env_config.yml
+
+# 設定ファイル（設定パラメーター）読み込み
+- name: include task parameters
+  include_vars:
+      file: "{{ item.path }}"
+
+# 設定ファイル（vtab設定）読み込み
+- name: include vtab setting define
+  include_vars:
+      file: vtab_setting.yml
+
+- name: filename defined
+  set_fact: 
+    result_file: "diff_result_{{ env_name }}_dfw"
+    
+
+- name: task main
+  block:
+    - debug: msg="******** DBG MSG( diff_security_policy.yml task START! ):********"
+    - name: diff rules
+      block:
+        - name: var init
+          set_fact:
+            tmp_config:
+              rules: []
+            get_result:
+              Add: []
+              Change: []
+              Missing: []
+
+        - name: get exec time
+          set_fact:
+            diff_time: '{{ lookup(''pipe'',''date +"%Y/%m/%d %H:%M:%S"'') }}'
+
+        - name: create diff result
+          lineinfile:
+            path: "{{ result_file }}"
+            create: true
+            state: "present"
+            regexp: "^◆実行時間：{{ env_name }}：.*"
+            line: "◆実行時間：{{ env_name }}：{{ diff_time }}◆"
+            mode: 0644
+
+        - name: diff rulescd
+          block:
+            - name: diff rules
+              diff_fw_rules:
+                user: "{{ nsxt_uri_config.user }}"
+                password: "{{ nsxt_uri_config.password }}"
+                validate_certs: "{{ nsxt_uri_config.validate_certs }}"
+                api_policy: "{{ api_policy_url }}"
+                target_file_list: "{{ result }}"
+                checkkey: "display_name"
+                gw_type: "dfw"
+              register: diff_result
+    
+            - name: debug
+              debug:
+                msg: "{{ diff_result }}"
+
+          rescue:
+            - debug: 
+                msg: "exec diff rules failed."
+              failed_when: true
+    
+        - when:
+            - diff_result is defined and diff_result.Add != []
+          block:
+            - name: insert add headline
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                line: "{{ ADD_HEADLINE }}"
+                mode: 0644
+        
+            - name: output add
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                insertafter: "{{ ADD_HEADLINE }}"
+                line: "{{ result_var.file_name }}:{{ file_name.section_name }}:{{ file_name.key_name }}"
+                mode: 0644
+              loop: "{{ diff_result.Add }}"
+              loop_control:
+                loop_var: result_var
+
+          rescue:
+            - debug: 
+                msg: "output add result failed. }}"
+              failed_when: true
+
+        - when:
+            - diff_result is defined and diff_result.Missing != []
+          block:
+            - name: insert missing headline
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                line: "{{ MISSING_HEADLINE }}"
+                mode: 0644
+        
+            - name: output missing
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                insertafter: "{{ MISSING_HEADLINE }}"
+                line: "{{ result_var.file_name }}:{{ file_name.section_name }}:{{ file_name.key_name }}"
+                mode: 0644
+              loop: "{{ diff_result.Missing }}"
+              loop_control:
+                loop_var: result_var
+
+          rescue:
+            - debug: 
+                msg: "output missing result failed. file_name = {{ item.path | basename }}"
+              failed_when: true
+
+        - when:
+            - diff_result is defined and diff_result.Change != []
+          block:
+            - name: insert changed headline
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                line: "{{ CHANGED_HEADLINE }}"
+                mode: 0644
+        
+            - name: output change
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                insertafter: "{{ CHANGED_HEADLINE }}"
+                line: "{{ result_var.file_name }}:{{ result_var.section_name }}:{{ result_var.key_name }}:{{ result_var.key_col }}:{{ result_var.before_exist }}→{{ result_var.after_exist }}"
+                mode: 0644
+              loop: "{{ diff_result.Change }}"
+              loop_control:
+                loop_var: result_var
+
+          rescue:
+            - debug: 
+                msg: "output changed result failed. "
+              failed_when: true
+
+        - when:
+            - diff_result is defined and diff_result.Missing_key != []
+          block:
+            - name: insert changed headline
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                line: "{{ NOEXIST_HEADLINE }}"
+                mode: 0644
+        
+            - name: output change
+              lineinfile:
+                path: "{{ result_file }}"
+                create: true
+                state: "present"
+                insertafter: "{{ NOEXIST_HEADLINE }}"
+                line: "{{ result_var.file_name }}:{{ file_name.section_name }}"
+                mode: 0644
+              loop: "{{ diff_result.Missing_key }}"
+              loop_control:
+                loop_var: result_var
+
+          rescue:
+            - debug: 
+                msg: "output changed result failed. file_name = {{ item.path | basename }}"
+              failed_when: true
+
+      rescue:
+        - debug: 
+            msg: "diff_security_policy.yml failed. file_name = {{ item.path | basename }}"
+          failed_when: true
+
+  always:
+    - debug: 
+        msg: "******** DBG MSG( diff_security_policy.yml task END! ):********"
