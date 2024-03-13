@@ -1,0 +1,87 @@
+- name: start container
+  #hosts: localhost
+  hosts: all
+  
+  tasks:
+    - name: Create a network
+      docker_network:
+        name: redmine-network
+
+    - name: start a mysql
+      community.docker.docker_container:
+        name: "mysql-redmine-test02"
+        image: docker.io/mysql:5.7
+        state: started
+        restart_policy: always
+        networks:
+          - name: redmine-network
+            aliases: mysql-redmine-test02
+        env:
+          TZ: Asia/Tokyo
+          MYSQL_ROOT_PASSWORD: redmine
+          MYSQL_DATABASE: redmine
+          MYSQL_USER: redmine
+          MYSQL_PASSWORD: redmine
+        volumes:
+          - /home/docker/data/redmine/database:/var/lib/mysql
+        command: mysqld --character-set-server=utf8 --collation-server=utf8_unicode_ci
+   
+   
+    - name: start a redmine
+      community.docker.docker_container:
+        name: "redmine-test02"
+        image: docker.io/redmine:latest
+        state: started
+        restart_policy: always
+        networks:
+          - name: redmine-network
+            aliases: redmine-test02
+        ports:
+          - 8082:3000
+        env:
+          TZ: Asia/Tokyo
+          REDMINE_DB_MYSQL: mysql-redmine-test02
+          REDMINE_DB_DATABASE: redmine
+          REDMINE_DB_USERNAME: redmine
+          REDMINE_DB_PASSWORD: redmine
+          REDMINE_DB_ENCODING: utf8
+          #REDMINE_HTTPS: true
+        volumes:
+          - /home/docker/data/redmine/files:/usr/src/redmine/files
+          - /home/docker/data/redmine/log:/usr/src/redmine/log
+            #- /home/docker/data/my_prot01/redmine/redmine/config:/usr/src/redmine/config
+          - /home/docker/data/redmine/plugins:/usr/src/redmine/plugins
+          - /home/docker/data/redmine/themes:/usr/src/redmine/public/themes
+   
+    - name: start a gitlab
+      community.docker.docker_container:
+        name: gitlab-test
+        image: docker.io/gitlab/gitlab-ce:latest
+        state: started
+        restart_policy: always
+        networks:
+          - name: redmine-network
+            aliases: gitlab-test
+        ports:
+          - "10180:80"
+          - "10143:443"
+          - "10122:22"
+        volumes:
+          - /home/docker/data/gitlab/config:/etc/gitlab
+          - /home/docker/data/gitlab/log:/var/log/gitlab
+          - /home/docker/data/gitlab/data:/var/opt/gitlab
+          - /home/docker/data/gitlab/ssl:/etc/ssl/certs/gitlab
+  
+    - name: start a nginx
+      community.docker.docker_container:
+        name: nginx-redmine-test02
+        image: docker.io/nginx:latest
+        state: started
+        restart_policy: always
+        networks:
+          - name: redmine-network
+            aliases: nginx-redmine-test02
+        ports:
+          - 8443:443
+        volumes:
+          - /home/docker/data/nginx:/etc/nginx/

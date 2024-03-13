@@ -1,0 +1,10 @@
+---
+- name: create Amazon Web Services
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  roles:
+    - ec2
+  tasks:
+    - name: Refresh inventory
+      meta: refresh_inventory

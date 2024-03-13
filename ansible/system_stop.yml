@@ -1,0 +1,28 @@
+- name: start container
+  hosts: localhost
+  
+  tasks:
+    - name: Create a network
+      docker_network:
+        name: redmine-network
+
+    - name: start a mysql
+      community.docker.docker_container:
+        name: "mysql-redmine-test02"
+        state: stop
+      loop:
+        - "mysql-redmine-test02"
+        - "redmine-test02"
+        - "gitlab-test"
+        - "nginx-redmine-test02"
+  
+    - name: start a mysql
+      community.docker.docker_container:
+        name: "mysql-redmine-test02"
+        state: absent
+      loop:
+        - "mysql-redmine-test02"
+        - "redmine-test02"
+        - "gitlab-test"
+        - "nginx-redmine-test02"
+  
