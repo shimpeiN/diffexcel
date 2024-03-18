@@ -1,0 +1,8 @@
+- name: start container
+  hosts: localhost
+  #hosts: all
+  
+  tasks:
+    - name: Create a network
+      debug:
+        msg: "test test"
