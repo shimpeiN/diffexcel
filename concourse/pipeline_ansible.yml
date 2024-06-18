@@ -1,0 +1,55 @@
+#resource_types:
+  #- name: ansible-playbook
+  #type: docker-image
+  #source:
+  #repository: troykinsella/concourse-ansible-playbook-resource
+  # tag: latest
+
+resources:
+  #- name: ansible
+  #type: ansible-playbook
+  #source:
+  #debug: false
+    #user: ubuntu
+    #ssh_private_key: ((ansible_ssh_private_key))
+    #vault_password: ((ansible_vault_password))
+    #verbose: v
+
+- name: master
+  type: git
+  source:
+    uri: https://github.com/shimpeiN/portfolio.git
+    branch: main
+    username: shimpeiN
+    password: Xshinpei428
+
+      #- name: ansible-image
+      #type: registry-image
+      #source:
+      #repository: 172.17.0.4:5000/ansible-image
+
+
+jobs:
+- name: some-task
+  plan:
+  - get: master
+  - task: print-hello-world
+    config:
+      platform: linux
+      image_resource:
+        type: docker-image
+        source:
+          repository: 172.13.0.5:5000/ansible-image
+          #repository: registry.local:5000/ansible-image
+          insecure_registries: [ "172.13.0.5:5000" ]
+          tag: '1.1.0'
+      inputs:
+      - name: master
+      run:
+        path: sh
+        args:
+          #- -exc
+        - -exc
+        - |
+          cd master/ansible
+          ansible-playbook -i inventory/site_test.yml site_test.yml

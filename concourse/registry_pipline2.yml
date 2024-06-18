@@ -1,0 +1,51 @@
+resources:
+- name: master
+  type: git
+  source:
+    uri: https://github.com/shimpeiN/portfolio.git
+    branch: main
+    username: shimpeiN
+    password: Xshinpei428
+
+- name: ansible-image
+  type: registry-image
+  source:
+    #repository: registry.local:5000/ansible-image
+    repository: 172.13.0.5:5000/ansible-image
+    insecure: yes
+
+jobs:
+- name: build-and-push
+  plan:
+  # fetch repository source (containing Dockerfile)
+  - get: master
+
+  # build using `oci-build` task
+  #
+  # note: this task config could be pushed into `my-image-src` and loaded using
+  # `file:` instead
+  - task: build
+    privileged: true
+    config:
+      platform: linux
+
+      image_resource:
+        type: registry-image
+        source:
+          repository: concourse/oci-build-task
+
+      inputs:
+      - name: master
+        path: .
+
+      outputs:
+      - name: image
+
+      run:
+        path: build
+
+  # push using `registry-image` resource
+  - put: ansible-image
+    params: 
+      image: image/image.tar
+      version: 1.1.0

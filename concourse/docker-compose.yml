@@ -1,0 +1,77 @@
+version: '3'
+
+services:
+  concourse-db:
+    image: postgres
+    networks: 
+      concourse:
+        ipv4_address: 172.13.0.2
+    environment:
+      POSTGRES_DB: concourse
+      POSTGRES_USER: concourse
+      POSTGRES_PASSWORD: changeme
+      PGDATA: /database
+
+  concourse-web:
+    image: concourse/concourse
+    links: [concourse-db]
+    depends_on: [concourse-db]
+    command: web
+    privileged: true
+    restart: unless-stopped
+    ports: ["8080:8080", "2222:2222"]
+    volumes: ["./keys/web:/concourse-keys"]
+    networks: 
+      concourse:
+        ipv4_address: 172.13.0.3
+    environment:
+      CONCOURSE_EXTERNAL_URL: http://localhost:8080
+      CONCOURSE_POSTGRES_HOST: concourse-db
+      CONCOURSE_POSTGRES_USER: concourse
+      CONCOURSE_POSTGRES_DATABASE: concourse
+      CONCOURSE_POSTGRES_PASSWORD: changeme
+      CONCOURSE_ADD_LOCAL_USER: test:test
+      CONCOURSE_MAIN_TEAM_LOCAL_USER: test
+
+  concourse-worker:
+    image: concourse/concourse
+    privileged: true
+    links: [concourse-web]
+    depends_on: [concourse-web]
+    command: worker
+    volumes: ["./keys/worker:/concourse-keys"]
+    networks: 
+      concourse:
+        ipv4_address: 172.13.0.4
+        #dns:
+        #- 1.1.1.1
+    environment:
+      CONCOURSE_TSA_HOST: concourse-web:2222
+      CONCOURSE_RUNTIME: containerd
+      # containerd runtime
+      CONCOURSE_CONTAINERD_DNS_SERVER: "1.1.1.1,8.8.8.8"
+      #CONCOURSE_CONTAINERD_DNS_SERVER: "127.0.0.11"
+      # Guardian runtime
+      #CONCOURSE_GARDEN_DNS_SERVER: "1.1.1.1,8.8.8.8"
+      #CONCOURSE_CONTAINERD_DNS_PROXY_ENABLE: true
+      #CONCOURSE_CONTAINERD_ALLOW_HOST_ACCESS: "true"
+
+  registry.local:
+    image: registry
+    container_name: registry.local
+    hostname: registry.local
+    ports:
+      - "5000:5000"
+    networks:
+      concourse:
+        ipv4_address: 172.13.0.5
+
+
+networks:
+  concourse:
+    driver: bridge
+    ipam:
+     driver: default
+     config:
+       - subnet: 172.13.0.0/24
+         #gateway: 172.13.0.1
